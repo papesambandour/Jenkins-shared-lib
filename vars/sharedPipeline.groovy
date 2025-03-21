@@ -59,12 +59,12 @@ def call(Map config) {
 
             stage('Deploy to CapRover') {
                 steps {
-                    echo "Deploying ${appName} from branch ${gitBranch} to ${captainUrl}"
+                    echo "Deploying ${appName} from branch $GIT_BRANCH to ${captainUrl}"
                     sh """
                         caprover deploy \
                             -h ${captainUrl} \
                             -p ${captainPassword} \
-                            -b ${gitBranch} \
+                            -b $GIT_BRANCH \
                             -a ${appName} 
                     """
                 }
