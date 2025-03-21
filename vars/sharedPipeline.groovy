@@ -65,8 +65,7 @@ def call(Map config) {
                             -h ${captainUrl} \
                             -p ${captainPassword} \
                             -b ${gitBranch} \
-                            -a ${appName} \
-                            --wait ${deploymentTimeout}
+                            -a ${appName} 
                     """
                 }
             }
