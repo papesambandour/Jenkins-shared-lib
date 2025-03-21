@@ -48,7 +48,7 @@ def call(Map config) {
 
             stage('Prepare Deployment') {
                 steps {
-                    echo "Preparing deployment for branch: ${gitBranch}"
+                    echo "Preparing deployment for branch: $GIT_BRANCH"
                     script {
                         if (!captainUrl || !captainPassword) {
                             error "Missing required deployment credentials"
