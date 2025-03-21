@@ -18,7 +18,7 @@ def call(Map config) {
     pipeline {
         agent {
             docker {
-                image 'node:lts'
+                image 'papesambandour/docker-node-alpine-16-git:1.1'
                 args '-u root:root'
             }
         }
@@ -35,31 +35,6 @@ def call(Map config) {
                     echo "Starting pipeline for ${appName} deployment"
                     sh 'node --version && npm --version'
                     sh 'git --version'
-                }
-            }
-            stage('Fetch Latest Changes') {
-                steps {
-                    // Fetch the latest changes and update the local develop branch
-                    sh """
-                    git fetch --all
-                    git checkout develop
-                    git pull origin develop
-                """
-                }
-            }
-
-            stage('Debug Branch and Commit Hash') {
-                steps {
-                    sh """
-                    echo "Current branch:"
-                    git branch
-
-                    echo "Latest commit hash for develop:"
-                    git rev-parse develop
-
-                    echo "Latest commit hash for origin/develop:"
-                    git rev-parse origin/develop
-                """
                 }
             }
 
