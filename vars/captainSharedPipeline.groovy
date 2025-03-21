@@ -7,9 +7,13 @@ def call(Map config) {
     def gitBranch = config.gitBranch ?: env.GIT_BRANCH
     def notifyEmails = config.notifyEmails ?: env.NOTIFY_PRIME_TEAM_LEAD
     def captainUrl = config.captainUrl ?: env.CAPTAIN_URL_TEST
-    def captainPassword = config.captainPassword ?: env.PASSWORD_CAPROVER
+    def captainPassword = config.captainPassword ?: env.PASSWORD_CAPROVER_TEST
     def deploymentTimeout = config.deploymentTimeout ?: '300'
     def fromEmail = config.fromEmail ?: env.FROM_MAIL
+// Validate required parameters
+    if (!captainUrl || !captainPassword) {
+        error "Missing required deployment credentials: captainUrl or captainPassword"
+    }
 
     pipeline {
         agent {
@@ -20,7 +24,7 @@ def call(Map config) {
         }
 
         options {
-            timeout(time: 30, unit: 'MINUTES')
+            timeout(time: config.timeoutMinutes ?: 30, unit: 'MINUTES')
             disableConcurrentBuilds()
             ansiColor('xterm')
         }
