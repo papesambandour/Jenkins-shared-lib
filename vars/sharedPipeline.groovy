@@ -24,7 +24,7 @@ def call(Map config) {
         }
 
         options {
-            timeout(time: config.timeoutMinutes ?: 30, unit: 'MINUTES')
+            timeout(time: 30, unit: 'MINUTES')
             disableConcurrentBuilds()
             ansiColor('xterm')
         }
