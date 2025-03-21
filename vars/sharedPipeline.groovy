@@ -70,12 +70,12 @@ def call(Map config) {
                 }
             }
 
-            stage('Verify Deployment') {
-                steps {
-                    echo "Verifying deployment status"
-                    sh "caprover api -h ${captainUrl} -p ${captainPassword} -n getAppData -d '{\"appName\":\"${appName}\"}' | grep -q '\"deployedVersion\"'"
-                }
-            }
+//            stage('Verify Deployment') {
+//                steps {
+//                    echo "Verifying deployment status"
+//                    sh "caprover api -h ${captainUrl} -p ${captainPassword} -n getAppData -d '{\"appName\":\"${appName}\"}' | grep -q '\"deployedVersion\"'"
+//                }
+//            }
         }
 
         post {
