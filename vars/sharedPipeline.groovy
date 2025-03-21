@@ -63,8 +63,8 @@ def call(Map config) {
                     sh """
                         caprover deploy \
                             -h ${captainUrl} \
-                            -p '${captainPassword}' \
-                            -b $GIT_BRANCH \
+                            -p ${captainPassword} \
+                            -b ${GIT_BRANCH.replace('origin/', '')} \
                             -a ${appName} 
                     """
                 }
