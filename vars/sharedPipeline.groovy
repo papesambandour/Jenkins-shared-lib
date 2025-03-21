@@ -37,6 +37,31 @@ def call(Map config) {
                     sh 'git --version'
                 }
             }
+            stage('Fetch Latest Changes') {
+                steps {
+                    // Fetch the latest changes and update the local develop branch
+                    sh """
+                    git fetch --all
+                    git checkout develop
+                    git pull origin develop
+                """
+                }
+            }
+
+            stage('Debug Branch and Commit Hash') {
+                steps {
+                    sh """
+                    echo "Current branch:"
+                    git branch
+
+                    echo "Latest commit hash for develop:"
+                    git rev-parse develop
+
+                    echo "Latest commit hash for origin/develop:"
+                    git rev-parse origin/develop
+                """
+                }
+            }
 
             stage('Install CapRover CLI') {
                 steps {
