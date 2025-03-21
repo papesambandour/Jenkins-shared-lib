@@ -42,7 +42,7 @@ def call(Map config) {
                 steps {
                     echo "Installing CapRover CLI"
                     sh 'npm install -g caprover'
-                    sh 'caprover version'
+                    sh 'caprover --version'
                 }
             }
 
