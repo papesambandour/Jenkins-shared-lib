@@ -86,7 +86,7 @@ def call(Map config) {
                             subject: "✅ SUCCESSFUL: ${appName} Deployment to CapRover",
                             body: """
                             <h2>Deployment Successful</h2>
-                            <p>The ${appName} application was successfully deployed from branch <b>${gitBranch}</b>.</p>
+                            <p>The ${appName} application was successfully deployed from branch <b>${GIT_BRANCH}</b>.</p>
                             <p><b>Build URL:</b> <a href="${BUILD_URL}">${BUILD_URL}</a></p>
                             <p><b>Build Number:</b> ${BUILD_NUMBER}</p>
                             <p><b>Completed:</b> ${new Date()}</p>
@@ -107,7 +107,7 @@ def call(Map config) {
                             subject: "❌ FAILED: ${appName} Deployment to CapRover",
                             body: """
                             <h2>Deployment Failed</h2>
-                            <p>The ${appName} application deployment from branch <b>${gitBranch}</b> has failed.</p>
+                            <p>The ${appName} application deployment from branch <b>${GIT_BRANCH}</b> has failed.</p>
                             <p><b>Build URL:</b> <a href="${BUILD_URL}">${BUILD_URL}</a></p>
                             <p><b>Build Number:</b> ${BUILD_NUMBER}</p>
                             <p><b>Failed At:</b> ${new Date()}</p>
