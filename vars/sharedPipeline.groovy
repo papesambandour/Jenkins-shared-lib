@@ -1,4 +1,4 @@
-// File: jenkins/captainSharedPipeline.groovy
+// File: jenkins/sharedPipeline.groovy
 // Place this file in your Jenkins shared library
 
 def call(Map config) {
