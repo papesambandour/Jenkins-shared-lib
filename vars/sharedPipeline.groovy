@@ -61,11 +61,13 @@ def call(Map config) {
                 steps {
                     echo "Deploying ${appName} from branch- $GIT_BRANCH to ${captainUrl}"
                     sh """
+                        set +x  # Disable command echo
                         caprover deploy \
                             -h ${captainUrl} \
                             -p ${captainPassword} \
                             -b $GIT_BRANCH \
                             -a ${appName} 
+                        set -x  # Re-enable command echo
                     """
                 }
             }
