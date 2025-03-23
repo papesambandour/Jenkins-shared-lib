@@ -76,7 +76,7 @@ def call(Map config) {
                     script {
                         def appStatus = sh(returnStdout: true, script: "caprover -h ${captainUrl} -p ${captainPassword} apps get ${appName}")
                         if (appStatus.contains("not found")) {
-                            echo "App not deployed"
+                            echo "App ${appName} not deployed"
                         } else {
                             echo "${appName} App deployed on ${captainUrl}"
                         }
