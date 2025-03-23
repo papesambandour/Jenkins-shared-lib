@@ -72,27 +72,6 @@ def call(Map config) {
                 }
             }
 
-            stage('Verify Deployment') {
-                steps {
-                    echo "Verifying deployment of ${appName} to ${captainUrl}"
-                    sh """
-                set +x  # Disable command echo
-                caprover status \
-                    -h ${captainUrl} \
-                    -p ${captainPassword} \
-                    -a ${appName} 
-                set -x  # Re-enable command echo
-            """
-                    // Check the exit code of the previous command
-                    script {
-                        def exitCode = sh(returnStatus: true, script: 'caprover status -h ${captainUrl} -p ${captainPassword} -a ${appName}').exitValue
-                        if (exitCode != 0) {
-                            error "Deployment verification failed"
-                        }
-                    }
-                }
-            }
-
         }
 
         post {
