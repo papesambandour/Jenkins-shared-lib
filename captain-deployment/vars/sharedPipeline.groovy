@@ -70,6 +70,8 @@ def call(Map config) {
                         set -x  # Re-enable command echo
                     """
                 }
+            }
+            stage('Verify Deployment') {
                 steps {
                     script {
                         def appStatus = sh(returnStdout: true, script: "caprover apps get ${appName}")
