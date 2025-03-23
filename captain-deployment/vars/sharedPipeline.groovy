@@ -70,6 +70,16 @@ def call(Map config) {
                         set -x  # Re-enable command echo
                     """
                 }
+                steps {
+                    script {
+                        def appStatus = sh(returnStdout: true, script: "caprover apps get ${appName}")
+                        if (appStatus.contains("not found")) {
+                            echo "App not deployed"
+                        } else {
+                            echo "${appName} App deployed on ${captainUrl}"
+                        }
+                    }
+                }
             }
 
         }
