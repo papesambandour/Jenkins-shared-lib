@@ -1,6 +1,3 @@
-// File: jenkins/sharedPipeline.groovy
-// Place this file in your Jenkins shared library
-
 def call(Map config) {
     def notifyEmails = config.notifyEmails ?: env.NOTIFY_TEAM_OPS
     def fromEmail = config.fromEmail ?: env.FROM_MAIL
@@ -132,44 +129,22 @@ def call(Map config) {
         post {
             success {
                 script {
-                    def recipients = "${notifyEmails}".split(';').collect { "<${it.trim()}>" }.join(', ')
-                    emailext (
-                            subject: "✅ SUCCESSFUL: ${serviceAppName} Deployment to CapRover",
-                            body: """
-                            <h2>Deployment Successful</h2>
-                            <p>The ${serviceAppName} application was successfully deployed from branch <b>${GIT_BRANCH}</b>.</p>
-                            <p><b>Build URL:</b> <a href="${BUILD_URL}">${BUILD_URL}</a></p>
-                            <p><b>Build Number:</b> ${BUILD_NUMBER}</p>
-                            <p><b>Completed:</b> ${new Date()}</p>
-                        """,
-                            mimeType: 'text/html',
-                            replyTo: "${fromEmail}",
-                            to: recipients,
-                            attachLog: true,
-                            from: "${fromEmail}"
+                    sendNotification(
+                            status: 'success',
+                            serviceAppName: serviceAppName,
+                            notifyEmails: notifyEmails,
+                            fromEmail: fromEmail
                     )
                 }
             }
 
             failure {
                 script {
-                    def recipients = "${notifyEmails}".split(';').collect { "<${it.trim()}>" }.join(', ')
-                    emailext (
-                            subject: "❌ FAILED: ${serviceAppName} Deployment to CapRover",
-                            body: """
-                            <h2>Deployment Failed</h2>
-                            <p>The ${serviceAppName} application deployment from branch <b>${GIT_BRANCH}</b> has failed.</p>
-                            <p><b>Build URL:</b> <a href="${BUILD_URL}">${BUILD_URL}</a></p>
-                            <p><b>Build Number:</b> ${BUILD_NUMBER}</p>
-                            <p><b>Failed At:</b> ${new Date()}</p>
-                            <p>Please check the attached log for details.</p>
-                        """,
-                            mimeType: 'text/html',
-                            replyTo: "${fromEmail}",
-                            to: recipients,
-                            attachLog: true,
-                            compressLog: true,
-                            from: "${fromEmail}"
+                    sendNotification(
+                            status: 'failure',
+                            serviceAppName: serviceAppName,
+                            notifyEmails: notifyEmails,
+                            fromEmail: fromEmail
                     )
                 }
             }
