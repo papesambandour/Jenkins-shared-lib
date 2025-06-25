@@ -5,9 +5,9 @@ def call(Map config) {
     // Default configuration with overridable parameters
     def appName = config.appName ?: 'default-app'
     def gitBranch = config.gitBranch ?: env.GIT_BRANCH
-    def notifyEmails = config.notifyEmails ?: env.NOTIFY_PRIME_TEAM_LEAD
+    def notifyEmails = config.notifyEmails ?: env.NOTIFY_EMAIL_DEFAULT
     def captainUrl = config.captainUrl ?: env.CAPTAIN_URL_TEST
-    def captainPassword = config.captainPassword ?: env.PASSWORD_CAPROVER_TEST
+    def captainPassword = config.captainPassword ?: env.PASSWORD_CAPROVER
     def deploymentTimeout = config.deploymentTimeout ?: '300'
     def fromEmail = config.fromEmail ?: env.FROM_MAIL
 // Validate required parameters
