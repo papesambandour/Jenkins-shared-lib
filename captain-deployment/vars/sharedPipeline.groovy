@@ -4,7 +4,11 @@
 def call(Map config) {
     // Default configuration with overridable parameters
     def appName = config.appName ?: 'default-app'
-    def gitBranch = config.gitBranch ?: env.GIT_BRANCH
+    // La branche N'EST PAS résolue ici : env.GIT_BRANCH n'est peuplé qu'après le
+    // stage "Declarative: Checkout SCM", donc après l'évaluation de ce corps de
+    // méthode. La résoudre trop tôt donnait "caprover deploy -b null".
+    def configuredBranch = config.gitBranch
+    def resolvedBranch = null
     def notifyEmails = config.notifyEmails ?: env.NOTIFY_EMAIL_DEFAULT
     def captainUrl = config.captainUrl ?: env.CAPTAIN_URL
     def captainPassword = config.captainPassword ?: env.PASSWORD_CAPROVER
@@ -79,8 +83,13 @@ def call(Map config) {
 
             stage('Prepare Deployment') {
                 steps {
-                    echo "Preparing deployment for branch: ${gitBranch}"
                     script {
+                        // Résolution au runtime : ici le checkout SCM a eu lieu, GIT_BRANCH existe.
+                        resolvedBranch = normalizeBranch(configuredBranch ?: env.GIT_BRANCH ?: env.BRANCH_NAME)
+                        if (!resolvedBranch) {
+                            error "🚨 Branche git non résolue (GIT_BRANCH et BRANCH_NAME vides) : passez gitBranch: '<branche>' à sharedPipeline()"
+                        }
+                        echo "Preparing deployment for branch: ${resolvedBranch}"
                         if (!captainUrl || !captainPassword) {
                             error "🚨 Missing required deployment credentials"
                         }
@@ -90,18 +99,20 @@ def call(Map config) {
 
             stage('Deploy to CapRover') {
                 steps {
-                    echo "Deploying ${appName} from branch ${gitBranch} to ${captainUrl}"
-                    // Le mot de passe passe par l'environnement au lieu d'être interpolé
-                    // dans le script shell : il ne se retrouve ni dans le log, ni dans le
-                    // fichier de script temporaire écrit sur le disque de l'agent.
-                    withEnv(["CAPROVER_PASSWORD=${captainPassword}"]) {
-                        sh """
-                            set +x
-                            caprover deploy \
-                                -h ${captainUrl} \
-                                -b ${gitBranch} \
-                                -a ${appName}
-                        """
+                    script {
+                        echo "Deploying ${appName} from branch ${resolvedBranch} to ${captainUrl}"
+                        // Le mot de passe passe par l'environnement au lieu d'être interpolé
+                        // dans le script shell : il ne se retrouve ni dans le log, ni dans le
+                        // fichier de script temporaire écrit sur le disque de l'agent.
+                        withEnv(["CAPROVER_PASSWORD=${captainPassword}"]) {
+                            sh """
+                                set +x
+                                caprover deploy \
+                                    -h ${captainUrl} \
+                                    -b ${resolvedBranch} \
+                                    -a ${appName}
+                            """
+                        }
                     }
                 }
             }
@@ -112,12 +123,13 @@ def call(Map config) {
             success {
                 script {
                     def recipients = buildRecipients(notifyEmails)
+                    def branchLabel = resolvedBranch ?: 'unknown'
                     if (recipients) {
                         emailext(
                                 subject: "✅ SUCCESSFUL: ${appName} Deployment to CapRover",
                                 body: """
                             <h2>Deployment Successful</h2>
-                            <p>The ${appName} application was successfully deployed from branch <b>${gitBranch}</b>.</p>
+                            <p>The ${appName} application was successfully deployed from branch <b>${branchLabel}</b>.</p>
                             <p><b>Build URL:</b> <a href="${BUILD_URL}">${BUILD_URL}</a></p>
                             <p><b>Build Number:</b> ${BUILD_NUMBER}</p>
                             <p><b>Completed:</b> ${new Date()}</p>
@@ -137,12 +149,16 @@ def call(Map config) {
             failure {
                 script {
                     def recipients = buildRecipients(notifyEmails)
+                    // Un échec avant "Prepare Deployment" (ex : install du CLI) laisse
+                    // resolvedBranch à null : on retente une résolution pour le mail.
+                    def branchLabel = resolvedBranch ?:
+                            normalizeBranch(configuredBranch ?: env.GIT_BRANCH ?: env.BRANCH_NAME) ?: 'unknown'
                     if (recipients) {
                         emailext(
                                 subject: "❌ FAILED: ${appName} Deployment to CapRover",
                                 body: """
                             <h2>Deployment Failed</h2>
-                            <p>The ${appName} application deployment from branch <b>${gitBranch}</b> has failed.</p>
+                            <p>The ${appName} application deployment from branch <b>${branchLabel}</b> has failed.</p>
                             <p><b>Build URL:</b> <a href="${BUILD_URL}">${BUILD_URL}</a></p>
                             <p><b>Build Number:</b> ${BUILD_NUMBER}</p>
                             <p><b>Failed At:</b> ${new Date()}</p>
@@ -166,6 +182,24 @@ def call(Map config) {
             }
         }
     }
+}
+
+// Normalise le nom de branche fourni par Jenkins.
+// GIT_BRANCH vaut souvent "origin/release" ou "refs/heads/release" ; le CLI caprover
+// attend un nom de branche git local ("release"), sinon le deploy échoue.
+// Retourne null si rien d'exploitable, pour que l'appelant puisse échouer proprement.
+def normalizeBranch(raw) {
+    if (!raw) {
+        return null
+    }
+    def branch = raw.toString().trim()
+    if (branch.isEmpty() || branch == 'null') {
+        return null
+    }
+    branch = branch.replaceFirst(/^refs\/heads\//, '')
+    branch = branch.replaceFirst(/^refs\/remotes\//, '')
+    branch = branch.replaceFirst(/^origin\//, '')
+    return branch.isEmpty() ? null : branch
 }
 
 // Transforme "a@x.com;b@y.com" en "<a@x.com>, <b@y.com>", chaîne vide si rien d'exploitable
