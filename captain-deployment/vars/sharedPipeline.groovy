@@ -1,4 +1,4 @@
-// File: jenkins/sharedPipeline.groovy
+// File: captain-deployment/vars/sharedPipeline.groovy
 // Place this file in your Jenkins shared library
 
 def call(Map config) {
@@ -10,15 +10,20 @@ def call(Map config) {
     def captainPassword = config.captainPassword ?: env.PASSWORD_CAPROVER
     def deploymentTimeout = config.deploymentTimeout ?: '300'
     def fromEmail = config.fromEmail ?: env.FROM_MAIL
-// Validate required parameters
+    // Image d'exécution + version du CLI surchargeables : une nouvelle release
+    // caprover ne peut plus casser tous les pipelines d'un coup.
+    def dockerImage = config.dockerImage ?: 'papesambandour/docker-node-alpine-16-git:1.1'
+    def caproverVersion = config.caproverVersion ?: '2.3.1'
+
+    // Validate required parameters
     if (!captainUrl || !captainPassword) {
-        error "Missing required deployment credentials: captainUrl or captainPassword"
+        error "🚨 Missing required deployment credentials: captainUrl or captainPassword"
     }
 
     pipeline {
         agent {
             docker {
-                image 'papesambandour/docker-node-alpine-16-git:1.1'
+                image "${dockerImage}"
                 args '-u root:root'
             }
         }
@@ -28,6 +33,9 @@ def call(Map config) {
             disableConcurrentBuilds()
         }
 
+        environment {
+            CAPROVER_VERSION = "${caproverVersion}"
+        }
 
         stages {
             stage('Setup') {
@@ -35,23 +43,46 @@ def call(Map config) {
                     echo "Starting pipeline for ${appName} deployment"
                     sh 'node --version && npm --version'
                     sh 'git --version'
+                    // Le conteneur tourne en root sur un workspace appartenant à uid 1000
+                    sh 'git config --global --add safe.directory "*" || true'
                 }
             }
 
             stage('Install CapRover CLI') {
                 steps {
-                    echo "Installing CapRover CLI"
-                    sh 'npm install -g caprover'
-                    sh 'caprover --version'
+                    echo "Installing CapRover CLI ${caproverVersion}"
+                    sh '''
+                        set -e
+                        NODE_MAJOR=$(node -p "process.versions.node.split('.')[0]")
+                        echo "Node major version detected: ${NODE_MAJOR}"
+
+                        # caprover >= 2.4.0 exige Node >= 20 et plante en ERR_REQUIRE_ESM
+                        # sur un runtime plus ancien : on epingle donc la version.
+                        if [ "${NODE_MAJOR}" -lt 20 ] && [ "${CAPROVER_VERSION}" = "latest" ]; then
+                            echo "Node ${NODE_MAJOR} cannot run caprover@latest, falling back to 2.3.1"
+                            CAPROVER_VERSION=2.3.1
+                        fi
+
+                        npm install -g --no-fund --no-audit "caprover@${CAPROVER_VERSION}"
+                    '''
+                    sh '''
+                        set -e
+                        if ! caprover --version; then
+                            echo "CapRover CLI installe mais non executable sur ce runtime Node."
+                            echo "Epinglez caproverVersion sur une release compatible, ou passez"
+                            echo "dockerImage sur une image Node >= 20 dans votre Jenkinsfile."
+                            exit 1
+                        fi
+                    '''
                 }
             }
 
             stage('Prepare Deployment') {
                 steps {
-                    echo "Preparing deployment for branch: $GIT_BRANCH"
+                    echo "Preparing deployment for branch: ${gitBranch}"
                     script {
                         if (!captainUrl || !captainPassword) {
-                            error "Missing required deployment credentials"
+                            error "🚨 Missing required deployment credentials"
                         }
                     }
                 }
@@ -59,16 +90,19 @@ def call(Map config) {
 
             stage('Deploy to CapRover') {
                 steps {
-                    echo "Deploying ${appName} from branch- $GIT_BRANCH to ${captainUrl}"
-                    sh """
-                        set +x  # Disable command echo
-                        caprover deploy \
-                            -h ${captainUrl} \
-                            -p ${captainPassword} \
-                            -b $GIT_BRANCH \
-                            -a ${appName} 
-                        set -x  # Re-enable command echo
-                    """
+                    echo "Deploying ${appName} from branch ${gitBranch} to ${captainUrl}"
+                    // Le mot de passe passe par l'environnement au lieu d'être interpolé
+                    // dans le script shell : il ne se retrouve ni dans le log, ni dans le
+                    // fichier de script temporaire écrit sur le disque de l'agent.
+                    withEnv(["CAPROVER_PASSWORD=${captainPassword}"]) {
+                        sh """
+                            set +x
+                            caprover deploy \
+                                -h ${captainUrl} \
+                                -b ${gitBranch} \
+                                -a ${appName}
+                        """
+                    }
                 }
             }
 
@@ -77,45 +111,53 @@ def call(Map config) {
         post {
             success {
                 script {
-                    def recipients = "${notifyEmails}".split(';').collect { "<${it.trim()}>" }.join(', ')
-                    emailext (
-                            subject: "✅ SUCCESSFUL: ${appName} Deployment to CapRover",
-                            body: """
+                    def recipients = buildRecipients(notifyEmails)
+                    if (recipients) {
+                        emailext(
+                                subject: "✅ SUCCESSFUL: ${appName} Deployment to CapRover",
+                                body: """
                             <h2>Deployment Successful</h2>
-                            <p>The ${appName} application was successfully deployed from branch <b>${GIT_BRANCH}</b>.</p>
+                            <p>The ${appName} application was successfully deployed from branch <b>${gitBranch}</b>.</p>
                             <p><b>Build URL:</b> <a href="${BUILD_URL}">${BUILD_URL}</a></p>
                             <p><b>Build Number:</b> ${BUILD_NUMBER}</p>
                             <p><b>Completed:</b> ${new Date()}</p>
                         """,
-                            mimeType: 'text/html',
-                            replyTo: "${fromEmail}",
-                            to: recipients,
-                            attachLog: true,
-                            from: "${fromEmail}"
-                    )
+                                mimeType: 'text/html',
+                                replyTo: "${fromEmail}",
+                                to: recipients,
+                                attachLog: true,
+                                from: "${fromEmail}"
+                        )
+                    } else {
+                        echo "No notification recipient configured, skipping success email"
+                    }
                 }
             }
 
             failure {
                 script {
-                    def recipients = "${notifyEmails}".split(';').collect { "<${it.trim()}>" }.join(', ')
-                    emailext (
-                            subject: "❌ FAILED: ${appName} Deployment to CapRover",
-                            body: """
+                    def recipients = buildRecipients(notifyEmails)
+                    if (recipients) {
+                        emailext(
+                                subject: "❌ FAILED: ${appName} Deployment to CapRover",
+                                body: """
                             <h2>Deployment Failed</h2>
-                            <p>The ${appName} application deployment from branch <b>${GIT_BRANCH}</b> has failed.</p>
+                            <p>The ${appName} application deployment from branch <b>${gitBranch}</b> has failed.</p>
                             <p><b>Build URL:</b> <a href="${BUILD_URL}">${BUILD_URL}</a></p>
                             <p><b>Build Number:</b> ${BUILD_NUMBER}</p>
                             <p><b>Failed At:</b> ${new Date()}</p>
                             <p>Please check the attached log for details.</p>
                         """,
-                            mimeType: 'text/html',
-                            replyTo: "${fromEmail}",
-                            to: recipients,
-                            attachLog: true,
-                            compressLog: true,
-                            from: "${fromEmail}"
-                    )
+                                mimeType: 'text/html',
+                                replyTo: "${fromEmail}",
+                                to: recipients,
+                                attachLog: true,
+                                compressLog: true,
+                                from: "${fromEmail}"
+                        )
+                    } else {
+                        echo "No notification recipient configured, skipping failure email"
+                    }
                 }
             }
 
@@ -124,4 +166,16 @@ def call(Map config) {
             }
         }
     }
+}
+
+// Transforme "a@x.com;b@y.com" en "<a@x.com>, <b@y.com>", chaîne vide si rien d'exploitable
+def buildRecipients(emails) {
+    if (!emails || emails.toString().trim().isEmpty() || emails.toString() == 'null') {
+        return ''
+    }
+    return emails.toString()
+            .split(';')
+            .findAll { it.trim() }
+            .collect { "<${it.trim()}>" }
+            .join(', ')
 }
